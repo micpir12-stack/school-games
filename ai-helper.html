@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My HTML AI Assistant</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --chat-bg: #ffffff;
+            --primary-color: #007bff;
+            --text-color: #333333;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background: var(--chat-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            line-height: 1.4;
+        }
+        .user-message {
+            background-color: var(--primary-color);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .ai-message {
+            background-color: #e9ecef;
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #dee2e6;
+            background: #fafafa;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+        }
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            margin-left: 10px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">AI Assistant</div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="message ai-message">Hello! How can I help you today?</div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="userInput" placeholder="Type a message..." autocomplete="off">
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    // Using an open-source model via Hugging Face's public API
+    const API_URL = "https://huggingface.co";
+    
+    // ⚠️ IMPORTANT: Get a free token at huggingface.co to avoid strict rate limits
+    // Leave it empty to try it out, but it may fail if public limits are exceeded.
+    const HF_TOKEN = ""; 
+
+    const chatMessages = document.getElementById('chatMessages');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // Allow pressing "Enter" to send a message
+    userInput.addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            sendMessage();
+        }
+    });
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        // Append User Message
+        appendMessage(text, 'user-message');
+        userInput.value = '';
+        
+        // Disable UI during loading
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+
+        // Append a temporary loading message for the AI
+        const loadingDiv = appendMessage('Thinking...', 'ai-message');
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(HF_TOKEN && { "Authorization": `Bearer ${HF_TOKEN}` })
+                },
+                body: JSON.stringify({ 
+                    inputs: `<s>[INST] ${text} [/INST]`,
+                    parameters: { max_new_tokens: 250 }
+                }),
+            });
+
+            const data = await response.json();
+            
+            // Extract the generated text safely
+            if (data && data[0] && data[0].generated_text) {
+                // Clear the "Thinking..." text and add the actual response
+                let reply = data[0].generated_text.replace(`<s>[INST] ${text} [/INST]`, '').trim();
+                loadingDiv.innerText = reply || "I generated an empty response. Try again!";
+            } else if (data.error) {
+                loadingDiv.innerText = `Error: ${data.error}`;
+            } else {
+                loadingDiv.innerText = "Oops! Something went wrong.";
+            }
+
+        } catch (error) {
+            loadingDiv.innerText = "Failed to connect to the AI model server.";
+            console.error(error);
+        } finally {
+            // Re-enable UI
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+    }
+
+    function appendMessage(text, className) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${className}`;
+        messageDiv.innerText = text;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to bottom
+        return messageDiv;
+    }
+</script>
+
+</body>
+</html>
